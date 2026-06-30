@@ -4,7 +4,8 @@ A private-by-default job-search Kanban dashboard for tracking opportunities, rec
 
 ## Live app
 
-Open `index.html` locally, or enable GitHub Pages for this repository.
+- GitHub Pages: https://llm-apprentice.github.io/opportunity-radar/
+- Local file: open `index.html` in your browser.
 
 ## Columns
 
