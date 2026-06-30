@@ -2,7 +2,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 
 const STAGES = ["New", "Screen", "Founder/HM", "Offer", "Pass", "Rejected"];
-const convexUrl = import.meta.env.VITE_CONVEX_URL;
+const convexUrl = import.meta.env?.VITE_CONVEX_URL;
 const client = convexUrl ? new ConvexHttpClient(convexUrl) : null;
 
 const demo = [
