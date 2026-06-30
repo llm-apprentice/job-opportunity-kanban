@@ -1,7 +1,12 @@
 data/*.local.json
 *.local.json
 .env
+.env.local
 .DS_Store
 google_token.json
 google_client_secret.json
 node_modules/
+dist/
+.pytest_cache/
+__pycache__/
+*.pyc

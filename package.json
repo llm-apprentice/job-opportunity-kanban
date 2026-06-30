@@ -5,9 +5,18 @@
   "description": "Private-by-default job-search Kanban dashboard for tracking opportunities, LinkedIn messages, and next steps.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
-    "preview": "vite preview --host 127.0.0.1 --port 4173"
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "sync": "scripts/sync_gmail_to_convex.sh",
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy",
+    "build": "vite build"
   },
   "devDependencies": {
+    "@types/node": "^26.0.1",
+    "typescript": "^6.0.3",
     "vite": "latest"
+  },
+  "dependencies": {
+    "convex": "^1.42.1"
   }
 }
