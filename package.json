@@ -1,0 +1,13 @@
+{
+  "name": "opportunity-radar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private-by-default job-search Kanban dashboard for tracking opportunities, LinkedIn messages, and next steps.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "preview": "vite preview --host 127.0.0.1 --port 4173"
+  },
+  "devDependencies": {
+    "vite": "latest"
+  }
+}

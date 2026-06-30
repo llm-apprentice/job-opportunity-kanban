@@ -4,3 +4,4 @@ data/*.local.json
 .DS_Store
 google_token.json
 google_client_secret.json
+node_modules/
