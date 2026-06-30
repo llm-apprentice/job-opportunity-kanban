@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Opportunity Radar — Job Search Kanban</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">Opportunity Radar</div>
+      <h1>Job-search Kanban for inbound opportunities</h1>
+      <p>Track recruiter/founder/HM threads, LinkedIn emails, next steps, and outcomes without losing context.</p>
+    </div>
+    <div class="actions">
+      <button id="seedDemo" class="ghost">Load demo</button>
+      <button id="importBtn" class="ghost">Import JSON</button>
+      <button id="exportBtn" class="primary">Export JSON</button>
+      <input id="fileInput" type="file" accept="application/json" hidden />
+    </div>
+  </header>
+
+  <main>
+    <section class="metrics" id="metrics"></section>
+    <section class="toolbar">
+      <div class="searchbox"><span>⌘</span><input id="search" placeholder="Search company, role, person, email subject…" /></div>
+      <div class="filter-pills">
+        <button class="filter active" data-filter="all">All</button>
+        <button class="filter" data-filter="linkedin">LinkedIn</button>
+        <button class="filter" data-filter="stale">Stale 7d+</button>
+        <button class="filter" data-filter="high">High priority</button>
+      </div>
+      <button id="addOpp" class="secondary">+ Add opportunity</button>
+    </section>
+    <section class="board" id="board" aria-label="Job opportunity Kanban board"></section>
+  </main>
+
+  <dialog id="editor">
+    <form method="dialog" id="editorForm">
+      <div class="modal-head"><div><div class="eyebrow">Opportunity</div><h2 id="modalTitle">Add opportunity</h2></div><button value="cancel" class="icon">×</button></div>
+      <div class="grid2">
+        <label>Company<input name="company" required /></label>
+        <label>Role<input name="role" required /></label>
+        <label>Stage<select name="stage"></select></label>
+        <label>Source<select name="source"><option>Email</option><option>LinkedIn</option><option>Referral</option><option>Direct</option><option>Other</option></select></label>
+        <label>Contact<input name="contact" /></label>
+        <label>Priority<select name="priority"><option>Medium</option><option>High</option><option>Low</option></select></label>
+        <label>Last touch<input name="lastTouch" type="date" /></label>
+        <label>Next step<input name="nextStep" /></label>
+      </div>
+      <label>Email subject<input name="subject" /></label>
+      <label>Resource / thread link<input name="url" type="url" placeholder="LinkedIn message URL, Gmail URL, JD, etc." /></label>
+      <label>Notes<textarea name="notes" rows="4"></textarea></label>
+      <div class="modal-actions"><button value="delete" id="deleteBtn" class="danger">Delete</button><span></span><button value="cancel" class="ghost">Cancel</button><button value="save" class="primary">Save</button></div>
+    </form>
+  </dialog>
+  <script src="assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+data/*.local.json
+*.local.json
+.env
+.DS_Store
+google_token.json
+google_client_secret.json
