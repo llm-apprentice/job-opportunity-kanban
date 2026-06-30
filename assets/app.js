@@ -75,8 +75,9 @@ function card(o) {
   const priority = o.priority === "High" ? `<span class="pill high">High priority</span>` : `<span class="pill">${o.priority || "Medium"}</span>`;
   const source = o.source === "LinkedIn" ? `<span class="pill linkedin">LinkedIn message/email</span>` : `<span class="pill">${o.source || "Email"}</span>`;
   const outcome = ["Pass", "Rejected"].includes(o.stage) ? `<span class="pill ${o.stage.toLowerCase()}">${o.stage}</span>` : "";
+  const enriched = o.gdocMatched ? `<span class="pill">GDoc enriched</span>` : "";
   return `<article class="card" draggable="true" data-id="${o._id}" tabindex="0">
-    <div class="meta">${source}${priority}${outcome}</div>
+    <div class="meta">${source}${priority}${outcome}${enriched}</div>
     <h3>${escapeHtml(o.company || "Unknown company")}</h3>
     <div class="role">${escapeHtml(o.role || "Unknown role")}</div>
     ${o.contact ? `<div class="contact">${escapeHtml(o.contact)}</div>` : ""}

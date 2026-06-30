@@ -31,6 +31,11 @@ export default defineSchema({
     nextStep: v.optional(v.string()),
     notes: v.optional(v.string()),
     url: v.optional(v.string()),
+    companySource: v.optional(v.string()),
+    roleSource: v.optional(v.string()),
+    gdocMatched: v.optional(v.boolean()),
+    gdocSnippet: v.optional(v.string()),
+    enrichmentConfidence: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

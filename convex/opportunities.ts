@@ -36,6 +36,11 @@ const gmailOpportunity = v.object({
   nextStep: v.optional(v.string()),
   notes: v.optional(v.string()),
   url: v.optional(v.string()),
+  companySource: v.optional(v.string()),
+  roleSource: v.optional(v.string()),
+  gdocMatched: v.optional(v.boolean()),
+  gdocSnippet: v.optional(v.string()),
+  enrichmentConfidence: v.optional(v.number()),
 });
 
 function shouldReplaceText(existing: string | undefined, incoming: string | undefined) {
@@ -89,6 +94,11 @@ export const upsertFromGmailBatch = mutation({
           gmailThreadId: opp.gmailThreadId || existing.gmailThreadId,
           dedupeKey: opp.dedupeKey || existing.dedupeKey,
           lastTouch: opp.lastTouch || existing.lastTouch,
+          companySource: opp.companySource || existing.companySource,
+          roleSource: opp.roleSource || existing.roleSource,
+          gdocMatched: opp.gdocMatched || existing.gdocMatched,
+          gdocSnippet: opp.gdocSnippet || existing.gdocSnippet,
+          enrichmentConfidence: Math.max(opp.enrichmentConfidence || 0, existing.enrichmentConfidence || 0) || undefined,
           updatedAt: now,
         });
         updated += 1;
@@ -130,6 +140,11 @@ export const updateOpportunity = mutation({
     nextStep: v.optional(v.string()),
     notes: v.optional(v.string()),
     url: v.optional(v.string()),
+    companySource: v.optional(v.string()),
+    roleSource: v.optional(v.string()),
+    gdocMatched: v.optional(v.boolean()),
+    gdocSnippet: v.optional(v.string()),
+    enrichmentConfidence: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { id, ...patch } = args;
