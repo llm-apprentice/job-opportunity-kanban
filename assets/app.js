@@ -2,8 +2,9 @@ import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 
 const STAGES = ["New", "Screen", "Founder/HM", "Offer", "Pass", "Rejected"];
+const forceDemo = new URLSearchParams(location.search).has("demo");
 const convexUrl = import.meta.env?.VITE_CONVEX_URL;
-const client = convexUrl ? new ConvexHttpClient(convexUrl) : null;
+const client = !forceDemo && convexUrl ? new ConvexHttpClient(convexUrl) : null;
 
 const demo = [
   { _id: "demo-1", company: "Northstar AI", role: "Head of Agent GTM", stage: "Founder/HM", source: "LinkedIn", contact: "Maya Chen", priority: "High", lastTouch: "2026-06-26", nextStep: "Prep founder narrative", subject: "Maya sent you a message on LinkedIn", url: "", notes: "Agentic workflow infra startup. Strong fit for GTM + technical storytelling." },
@@ -18,6 +19,8 @@ let query = "";
 let editingId = null;
 let loading = true;
 let loadError = "";
+let selectedIds = new Set();
+let lasso = null;
 
 async function load() {
   loading = true;
@@ -57,7 +60,9 @@ function filtered() {
 }
 
 function render() {
+  selectedIds = new Set([...selectedIds].filter((id) => opportunities.some((o) => o._id === id)));
   renderMetrics();
+  renderBulkBar();
   renderBoard();
 }
 
@@ -71,12 +76,21 @@ function renderMetrics() {
   el.innerHTML = metrics.map(([n, l]) => `<div class="metric"><b>${n}</b><span>${l}</span></div>`).join("");
 }
 
+function renderBulkBar() {
+  const bar = document.getElementById("bulkBar");
+  if (!bar) return;
+  const count = selectedIds.size;
+  bar.hidden = count === 0;
+  document.getElementById("selectedCount").textContent = `${count} selected`;
+}
+
 function card(o) {
   const priority = o.priority === "High" ? `<span class="pill high">High priority</span>` : `<span class="pill">${o.priority || "Medium"}</span>`;
   const source = o.source === "LinkedIn" ? `<span class="pill linkedin">LinkedIn message/email</span>` : `<span class="pill">${o.source || "Email"}</span>`;
   const outcome = ["Pass", "Rejected"].includes(o.stage) ? `<span class="pill ${o.stage.toLowerCase()}">${o.stage}</span>` : "";
   const enriched = o.gdocMatched ? `<span class="pill">GDoc enriched</span>` : "";
-  return `<article class="card" draggable="true" data-id="${o._id}" tabindex="0">
+  const selected = selectedIds.has(o._id) ? " selected" : "";
+  return `<article class="card${selected}" draggable="true" data-id="${o._id}" tabindex="0" aria-selected="${selectedIds.has(o._id)}">
     <div class="meta">${source}${priority}${outcome}${enriched}</div>
     <h3>${escapeHtml(o.company || "Unknown company")}</h3>
     <div class="role">${escapeHtml(o.role || "Unknown role")}</div>
@@ -101,8 +115,19 @@ function renderBoard() {
 
   document.querySelectorAll(".card").forEach((c) => {
     c.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", c.dataset.id));
-    c.addEventListener("click", () => openEditor(c.dataset.id));
-    c.addEventListener("keydown", (e) => { if (e.key === "Enter") openEditor(c.dataset.id); });
+    c.addEventListener("click", (e) => {
+      if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) {
+        toggleSelected(c.dataset.id);
+      } else {
+        openEditor(c.dataset.id);
+      }
+    });
+    c.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        toggleSelected(c.dataset.id);
+      } else if (e.key === "Enter") openEditor(c.dataset.id);
+    });
   });
   document.querySelectorAll(".column").forEach((col) => {
     col.addEventListener("dragover", (e) => e.preventDefault());
@@ -111,6 +136,69 @@ function renderBoard() {
       const id = e.dataTransfer.getData("text/plain");
       await updateOpportunity(id, { stage: col.dataset.stage });
     });
+  });
+}
+
+function toggleSelected(id, force) {
+  if (!id) return;
+  const shouldSelect = force ?? !selectedIds.has(id);
+  if (shouldSelect) selectedIds.add(id);
+  else selectedIds.delete(id);
+  renderBulkBar();
+  document.querySelector(`.card[data-id="${CSS.escape(id)}"]`)?.classList.toggle("selected", selectedIds.has(id));
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll(".card.selected").forEach((card) => card.classList.remove("selected"));
+  renderBulkBar();
+}
+
+async function deleteSelected() {
+  const ids = [...selectedIds];
+  if (!ids.length) return;
+  if (!confirm(`Delete ${ids.length} selected opportunity${ids.length === 1 ? "" : "ies"}?`)) return;
+  if (!client) {
+    opportunities = opportunities.filter((o) => !selectedIds.has(o._id));
+    selectedIds.clear();
+    render();
+    return;
+  }
+  for (const id of ids) {
+    await client.mutation(anyApi.opportunities.remove, { id });
+  }
+  selectedIds.clear();
+  await load();
+}
+
+function rectsOverlap(a, b) {
+  return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
+}
+
+function lassoRect() {
+  return {
+    left: Math.min(lasso.startX, lasso.x),
+    right: Math.max(lasso.startX, lasso.x),
+    top: Math.min(lasso.startY, lasso.y),
+    bottom: Math.max(lasso.startY, lasso.y),
+  };
+}
+
+function updateLassoBox() {
+  const box = document.getElementById("lassoBox");
+  if (!box || !lasso) return;
+  const r = lassoRect();
+  box.style.left = `${r.left}px`;
+  box.style.top = `${r.top}px`;
+  box.style.width = `${r.right - r.left}px`;
+  box.style.height = `${r.bottom - r.top}px`;
+}
+
+function applyLassoSelection() {
+  const r = lassoRect();
+  document.querySelectorAll(".card").forEach((card) => {
+    const cardRect = card.getBoundingClientRect();
+    if (rectsOverlap(r, cardRect)) selectedIds.add(card.dataset.id);
   });
 }
 
@@ -157,7 +245,24 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c]));
 }
 
-document.getElementById("search").addEventListener("input", (e) => { query = e.target.value; renderBoard(); });
+const searchInput = document.getElementById("search");
+const clearSearch = document.getElementById("clearSearch");
+function syncClearSearch() {
+  clearSearch.hidden = !searchInput.value;
+}
+searchInput.addEventListener("input", (e) => {
+  query = e.target.value;
+  syncClearSearch();
+  renderBoard();
+});
+clearSearch.addEventListener("click", () => {
+  searchInput.value = "";
+  query = "";
+  syncClearSearch();
+  searchInput.focus();
+  renderBoard();
+});
+syncClearSearch();
 document.querySelectorAll(".filter").forEach((b) => b.addEventListener("click", () => {
   document.querySelectorAll(".filter").forEach((x) => x.classList.remove("active"));
   b.classList.add("active");
@@ -165,7 +270,37 @@ document.querySelectorAll(".filter").forEach((b) => b.addEventListener("click", 
   renderBoard();
 }));
 document.getElementById("addOpp").addEventListener("click", () => openEditor());
-document.getElementById("seedDemo").addEventListener("click", () => { opportunities = demo; render(); });
+document.getElementById("clearSelection").addEventListener("click", clearSelection);
+document.getElementById("bulkDelete").addEventListener("click", deleteSelected);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && selectedIds.size) clearSelection();
+  if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.size && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) deleteSelected();
+});
+const boardEl = document.getElementById("board");
+boardEl.addEventListener("pointerdown", (e) => {
+  if (!e.altKey || e.button !== 0) return;
+  e.preventDefault();
+  lasso = { startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY };
+  document.getElementById("lassoBox").hidden = false;
+  updateLassoBox();
+  boardEl.setPointerCapture(e.pointerId);
+});
+boardEl.addEventListener("pointermove", (e) => {
+  if (!lasso) return;
+  lasso.x = e.clientX;
+  lasso.y = e.clientY;
+  updateLassoBox();
+});
+boardEl.addEventListener("pointerup", (e) => {
+  if (!lasso) return;
+  lasso.x = e.clientX;
+  lasso.y = e.clientY;
+  applyLassoSelection();
+  lasso = null;
+  document.getElementById("lassoBox").hidden = true;
+  render();
+});
+document.getElementById("seedDemo").addEventListener("click", () => { opportunities = demo; selectedIds.clear(); render(); });
 document.getElementById("exportBtn").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(opportunities, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
