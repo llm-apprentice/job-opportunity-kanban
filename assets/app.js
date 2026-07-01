@@ -248,7 +248,7 @@ function escapeHtml(str) {
 const searchInput = document.getElementById("search");
 const clearSearch = document.getElementById("clearSearch");
 function syncClearSearch() {
-  clearSearch.hidden = !searchInput.value;
+  clearSearch.disabled = !searchInput.value;
 }
 searchInput.addEventListener("input", (e) => {
   query = e.target.value;
