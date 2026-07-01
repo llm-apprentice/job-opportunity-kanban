@@ -31,6 +31,7 @@ const gmailOpportunity = v.object({
   gmailMessageId: v.optional(v.string()),
   gmailThreadId: v.optional(v.string()),
   dedupeKey: v.optional(v.string()),
+  companyKey: v.optional(v.string()),
   priority,
   lastTouch: v.optional(v.string()),
   nextStep: v.optional(v.string()),
@@ -51,6 +52,16 @@ function shouldReplaceText(existing: string | undefined, incoming: string | unde
   return false;
 }
 
+function canonicalCompanyKey(company: string | undefined) {
+  const value = (company || "").trim().toLowerCase();
+  if (!value || value === "unknown company") return undefined;
+  return value.replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+}
+
+function isIncomingNewer(existing: { lastTouch?: string; gmailMessageId?: string }, incoming: { lastTouch?: string; gmailMessageId?: string }) {
+  return `${incoming.lastTouch || ""}|${incoming.gmailMessageId || ""}` >= `${existing.lastTouch || ""}|${existing.gmailMessageId || ""}`;
+}
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -67,8 +78,15 @@ export const upsertFromGmailBatch = mutation({
     let updated = 0;
 
     for (const opp of args.opportunities) {
+      const companyKey = canonicalCompanyKey(opp.company);
       let existing = null;
-      if (opp.gmailMessageId) {
+      if (companyKey) {
+        existing = await ctx.db
+          .query("opportunities")
+          .withIndex("by_company_key", (q) => q.eq("companyKey", companyKey))
+          .unique();
+      }
+      if (!existing && opp.gmailMessageId) {
         existing = await ctx.db
           .query("opportunities")
           .withIndex("by_gmail_message", (q) => q.eq("gmailMessageId", opp.gmailMessageId))
@@ -83,17 +101,19 @@ export const upsertFromGmailBatch = mutation({
 
       const now = Date.now();
       if (existing) {
+        const useIncoming = isIncomingNewer(existing, opp);
         await ctx.db.patch(existing._id, {
           company: shouldReplaceText(existing.company, opp.company) ? opp.company : existing.company,
           role: shouldReplaceText(existing.role, opp.role) ? opp.role : existing.role,
-          source: opp.source,
-          contact: opp.contact || existing.contact,
-          subject: opp.subject || existing.subject,
-          snippet: opp.snippet || existing.snippet,
-          gmailMessageId: opp.gmailMessageId || existing.gmailMessageId,
-          gmailThreadId: opp.gmailThreadId || existing.gmailThreadId,
-          dedupeKey: opp.dedupeKey || existing.dedupeKey,
-          lastTouch: opp.lastTouch || existing.lastTouch,
+          source: useIncoming ? opp.source : existing.source,
+          contact: useIncoming ? opp.contact || existing.contact : existing.contact,
+          subject: useIncoming ? opp.subject || existing.subject : existing.subject,
+          snippet: useIncoming ? opp.snippet || existing.snippet : existing.snippet,
+          gmailMessageId: useIncoming ? opp.gmailMessageId || existing.gmailMessageId : existing.gmailMessageId,
+          gmailThreadId: useIncoming ? opp.gmailThreadId || existing.gmailThreadId : existing.gmailThreadId,
+          dedupeKey: useIncoming ? opp.dedupeKey || existing.dedupeKey : existing.dedupeKey,
+          companyKey: companyKey || existing.companyKey,
+          lastTouch: useIncoming ? opp.lastTouch || existing.lastTouch : existing.lastTouch,
           companySource: opp.companySource || existing.companySource,
           roleSource: opp.roleSource || existing.roleSource,
           gdocMatched: opp.gdocMatched || existing.gdocMatched,
@@ -105,6 +125,7 @@ export const upsertFromGmailBatch = mutation({
       } else {
         await ctx.db.insert("opportunities", {
           ...opp,
+          companyKey,
           stage: opp.stage || "New",
           priority: opp.priority || "Medium",
           createdAt: now,

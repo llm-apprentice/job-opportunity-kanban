@@ -9,6 +9,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from gmail_backfill import dedupe_by_company_keep_newest
+
 GAPI = ["python", str(Path.home() / ".hermes/skills/productivity/google-workspace/scripts/google_api.py")]
 DEFAULT_DOC_ID = "18gDt1KVMPnONbrQdZ_ulOMBecA11_VfiDI1mYasVcDw"
 
@@ -265,7 +267,7 @@ def fetch_gdoc_text(doc_id: str = DEFAULT_DOC_ID) -> str:
 
 def enrich_opportunities(opportunities: list[dict[str, Any]], doc_text: str) -> list[dict[str, Any]]:
     index = build_intel_index(doc_text, opportunities)
-    return [reconcile_opportunity(opp, index) for opp in opportunities]
+    return dedupe_by_company_keep_newest([reconcile_opportunity(opp, index) for opp in opportunities])
 
 
 def main():

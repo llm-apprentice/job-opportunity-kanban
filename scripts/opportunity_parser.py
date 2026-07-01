@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import html
 import re
-from email.utils import parseaddr
+from email.utils import parseaddr, parsedate_to_datetime
 from typing import Any
 
 STAGE = "New"
@@ -14,11 +14,17 @@ OMIT_SENDER_PATTERNS = [
     "mail.beehiiv.com",
 ]
 
+MY_EMAILS = {"lance.r.wills@gmail.com"}
+
 OMIT_SUBJECT_PATTERNS = [
     re.compile(r"\byour posts? got\b.*\b(impressions?|views?)\b", re.I),
     re.compile(r"\bpost performance\b", re.I),
     re.compile(r"\bpeople viewed your post\b", re.I),
     re.compile(r"\byour linkedin post\b", re.I),
+    re.compile(r"\bzoom\b", re.I),
+    re.compile(r"\bgoogle\s+meet\b", re.I),
+    re.compile(r"\bcalendar\s+invite\b", re.I),
+    re.compile(r"\binvitation:\s+.*\b(interview|zoom|meet)\b", re.I),
 ]
 
 LINKEDIN_PATTERNS = ["linkedin", "new message", "sent you a message", "inmail", "message replied"]
@@ -82,6 +88,9 @@ def _clean(value: str | None) -> str:
 
 def should_omit(sender: str, subject: str, snippet: str = "") -> bool:
     hay = f"{sender} {subject} {snippet}".lower()
+    _name, sender_email = parseaddr(sender)
+    if sender_email.lower() in MY_EMAILS:
+        return True
     if any(p in hay for p in OMIT_SENDER_PATTERNS):
         return True
     if any(p.search(subject) for p in OMIT_SUBJECT_PATTERNS):
@@ -161,6 +170,16 @@ def stable_dedupe_key(sender: str, subject: str) -> str:
     return f"{normalized_sender}|{normalized_subject}"
 
 
+def normalize_date(value: str | None) -> str:
+    value = _clean(value)
+    if not value:
+        return ""
+    try:
+        return parsedate_to_datetime(value).date().isoformat()
+    except Exception:
+        return value[:10]
+
+
 def parse_message(message: dict[str, Any]) -> dict[str, Any] | None:
     sender = _clean(message.get("from", ""))
     subject = _clean(message.get("subject", ""))
@@ -184,7 +203,7 @@ def parse_message(message: dict[str, Any]) -> dict[str, Any] | None:
         "source": source,
         "contact": sender,
         "priority": "Medium",
-        "lastTouch": ((message.get("date") or "")[:10] if message.get("date") else ""),
+        "lastTouch": normalize_date(message.get("date")),
         "nextStep": "Review thread / JD",
         "subject": subject,
         "url": "",

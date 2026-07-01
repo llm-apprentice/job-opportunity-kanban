@@ -26,6 +26,7 @@ export default defineSchema({
     gmailMessageId: v.optional(v.string()),
     gmailThreadId: v.optional(v.string()),
     dedupeKey: v.optional(v.string()),
+    companyKey: v.optional(v.string()),
     priority: v.union(v.literal("Low"), v.literal("Medium"), v.literal("High")),
     lastTouch: v.optional(v.string()),
     nextStep: v.optional(v.string()),
@@ -41,6 +42,7 @@ export default defineSchema({
   })
     .index("by_gmail_message", ["gmailMessageId"])
     .index("by_dedupe_key", ["dedupeKey"])
+    .index("by_company_key", ["companyKey"])
     .index("by_stage", ["stage"]),
 
   syncRuns: defineTable({

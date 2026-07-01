@@ -13,6 +13,37 @@ from pathlib import Path
 
 from opportunity_parser import parse_message
 
+
+def _company_key(company: str | None) -> str:
+    company = (company or "").strip().lower()
+    if not company or company == "unknown company":
+        return ""
+    return " ".join(company.replace(".", " ").replace("-", " ").split())
+
+
+def _date_key(row: dict) -> str:
+    return row.get("lastTouch") or ""
+
+
+def dedupe_by_company_keep_newest(rows: list[dict]) -> list[dict]:
+    """Collapse records with the same known company, keeping the newest touch.
+
+    Unknown-company rows are preserved because we do not yet know whether they are duplicates.
+    """
+    best_by_company: dict[str, dict] = {}
+    unknowns: list[dict] = []
+    for row in rows:
+        key = _company_key(row.get("company"))
+        if not key:
+            unknowns.append(row)
+            continue
+        current = best_by_company.get(key)
+        if current is None or (_date_key(row), row.get("gmailMessageId", "")) > (_date_key(current), current.get("gmailMessageId", "")):
+            best_by_company[key] = row
+    deduped = unknowns + list(best_by_company.values())
+    deduped.sort(key=lambda r: (_date_key(r), r.get("gmailMessageId", "")), reverse=True)
+    return deduped
+
 GAPI = ["python", str(Path.home() / ".hermes/skills/productivity/google-workspace/scripts/google_api.py")]
 
 
@@ -45,7 +76,7 @@ def collect_opportunities(days: int = 60, max_results: int = 150) -> list[dict]:
             continue
         seen.add(key)
         opps.append(parsed)
-    return opps
+    return dedupe_by_company_keep_newest(opps)
 
 
 def main():

@@ -12,3 +12,4 @@ if [[ "${ENABLE_GDOC_ENRICHMENT:-0}" == "1" ]] && python scripts/gdoc_intel.py \
 else
   node scripts/push_to_convex.mjs data/opportunities.local.json
 fi
+node scripts/cleanup_convex_board.mjs
