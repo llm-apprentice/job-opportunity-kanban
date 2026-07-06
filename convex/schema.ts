@@ -41,6 +41,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_gmail_message", ["gmailMessageId"])
+    .index("by_gmail_thread", ["gmailThreadId"])
     .index("by_dedupe_key", ["dedupeKey"])
     .index("by_company_key", ["companyKey"])
     .index("by_stage", ["stage"]),

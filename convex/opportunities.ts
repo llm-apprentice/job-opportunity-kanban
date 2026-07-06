@@ -62,6 +62,25 @@ function isIncomingNewer(existing: { lastTouch?: string; gmailMessageId?: string
   return `${incoming.lastTouch || ""}|${incoming.gmailMessageId || ""}` >= `${existing.lastTouch || ""}|${existing.gmailMessageId || ""}`;
 }
 
+type OpportunityDoc = {
+  _id: any;
+  stage: string;
+  lastTouch?: string;
+  updatedAt: number;
+};
+
+// When several rows match (legacy duplicates), keep the one the user has
+// already triaged: any non-"New" stage wins, then most recently updated.
+function pickBestMatch<T extends OpportunityDoc>(rows: T[]): T | null {
+  if (rows.length === 0) return null;
+  return rows.slice().sort((a, b) => {
+    const aTriaged = a.stage !== "New" ? 1 : 0;
+    const bTriaged = b.stage !== "New" ? 1 : 0;
+    if (aTriaged !== bTriaged) return bTriaged - aTriaged;
+    return (b.updatedAt || 0) - (a.updatedAt || 0);
+  })[0];
+}
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -80,23 +99,40 @@ export const upsertFromGmailBatch = mutation({
     for (const opp of args.opportunities) {
       const companyKey = canonicalCompanyKey(opp.company);
       let existing = null;
-      if (companyKey) {
-        existing = await ctx.db
-          .query("opportunities")
-          .withIndex("by_company_key", (q) => q.eq("companyKey", companyKey))
-          .unique();
+      if (opp.gmailMessageId) {
+        existing = pickBestMatch(
+          await ctx.db
+            .query("opportunities")
+            .withIndex("by_gmail_message", (q) => q.eq("gmailMessageId", opp.gmailMessageId))
+            .collect(),
+        );
       }
-      if (!existing && opp.gmailMessageId) {
-        existing = await ctx.db
-          .query("opportunities")
-          .withIndex("by_gmail_message", (q) => q.eq("gmailMessageId", opp.gmailMessageId))
-          .unique();
+      // A reply or follow-up shares the Gmail thread of the original message:
+      // merge into the existing tile (whatever column it is in) instead of
+      // creating a new one.
+      if (!existing && opp.gmailThreadId) {
+        existing = pickBestMatch(
+          await ctx.db
+            .query("opportunities")
+            .withIndex("by_gmail_thread", (q) => q.eq("gmailThreadId", opp.gmailThreadId))
+            .collect(),
+        );
       }
       if (!existing && opp.dedupeKey) {
-        existing = await ctx.db
-          .query("opportunities")
-          .withIndex("by_dedupe_key", (q) => q.eq("dedupeKey", opp.dedupeKey))
-          .unique();
+        existing = pickBestMatch(
+          await ctx.db
+            .query("opportunities")
+            .withIndex("by_dedupe_key", (q) => q.eq("dedupeKey", opp.dedupeKey))
+            .collect(),
+        );
+      }
+      if (!existing && companyKey) {
+        existing = pickBestMatch(
+          await ctx.db
+            .query("opportunities")
+            .withIndex("by_company_key", (q) => q.eq("companyKey", companyKey))
+            .collect(),
+        );
       }
 
       const now = Date.now();
@@ -112,7 +148,7 @@ export const upsertFromGmailBatch = mutation({
           gmailMessageId: useIncoming ? opp.gmailMessageId || existing.gmailMessageId : existing.gmailMessageId,
           gmailThreadId: useIncoming ? opp.gmailThreadId || existing.gmailThreadId : existing.gmailThreadId,
           dedupeKey: useIncoming ? opp.dedupeKey || existing.dedupeKey : existing.dedupeKey,
-          companyKey: companyKey || existing.companyKey,
+          companyKey: existing.companyKey || companyKey,
           lastTouch: useIncoming ? opp.lastTouch || existing.lastTouch : existing.lastTouch,
           companySource: opp.companySource || existing.companySource,
           roleSource: opp.roleSource || existing.roleSource,
@@ -170,6 +206,22 @@ export const updateOpportunity = mutation({
   handler: async (ctx, args) => {
     const { id, ...patch } = args;
     await ctx.db.patch(id, { ...patch, updatedAt: Date.now() });
+  },
+});
+
+export const backfillCompanyKeys = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("opportunities").collect();
+    let patched = 0;
+    for (const row of rows) {
+      const key = canonicalCompanyKey(row.company);
+      if (key && row.companyKey !== key) {
+        await ctx.db.patch(row._id, { companyKey: key });
+        patched += 1;
+      }
+    }
+    return { patched };
   },
 });
 

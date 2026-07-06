@@ -25,6 +25,24 @@ def _date_key(row: dict) -> str:
     return row.get("lastTouch") or ""
 
 
+def dedupe_by_thread_keep_newest(rows: list[dict]) -> list[dict]:
+    """Collapse records from the same Gmail thread, keeping the newest touch.
+
+    Replies and follow-ups share a threadId; one conversation is one opportunity.
+    """
+    best_by_thread: dict[str, dict] = {}
+    no_thread: list[dict] = []
+    for row in rows:
+        key = row.get("gmailThreadId") or ""
+        if not key:
+            no_thread.append(row)
+            continue
+        current = best_by_thread.get(key)
+        if current is None or (_date_key(row), row.get("gmailMessageId", "")) > (_date_key(current), current.get("gmailMessageId", "")):
+            best_by_thread[key] = row
+    return no_thread + list(best_by_thread.values())
+
+
 def dedupe_by_company_keep_newest(rows: list[dict]) -> list[dict]:
     """Collapse records with the same known company, keeping the newest touch.
 
@@ -60,8 +78,12 @@ def collect_opportunities(days: int = 60, max_results: int = 150) -> list[dict]:
         f'after:{after} '
         '(linkedin OR recruiter OR hiring OR opportunity OR interview OR founder OR '
         '"sent you a message" OR "head of" OR "VP Marketing" OR "GTM") '
+        '-from:me -category:promotions '
         '-from:(beehiiv.com) -from:(mail.beehiiv.com) '
-        '-subject:("your posts got") -subject:("impressions last week")'
+        '-from:(messages-noreply@linkedin.com) -from:(security-noreply@linkedin.com) '
+        '-from:(calendar-notification@google.com) '
+        '-subject:("your posts got") -subject:("impressions last week") '
+        '-subject:("Message replied")'
     )
     msgs = run(GAPI + ["gmail", "search", query, "--max", str(max_results)])
 
@@ -76,12 +98,12 @@ def collect_opportunities(days: int = 60, max_results: int = 150) -> list[dict]:
             continue
         seen.add(key)
         opps.append(parsed)
-    return dedupe_by_company_keep_newest(opps)
+    return dedupe_by_company_keep_newest(dedupe_by_thread_keep_newest(opps))
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--days", type=int, default=60)
+    ap.add_argument("--days", type=int, default=14)
     ap.add_argument("--out", default="data/opportunities.local.json")
     ap.add_argument("--max", type=int, default=150)
     args = ap.parse_args()
