@@ -76,8 +76,9 @@ const GARBAGE_COMPANIES = new Set([
   "san", "los", "eu", "us", "usa", "uk", "remote", "hybrid", "onsite",
 ]);
 
+// Must mirror canonicalCompanyKey in convex/opportunities.ts.
 function normalizeKey(name) {
-  return (name || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+  return (name || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 function companyKey(row) {
@@ -127,12 +128,16 @@ function isJunk(row) {
   const snippet = `${row.snippet || ""} ${row.notes || ""}`;
   if (MY_EMAILS.some((e) => contact.includes(e))) return true;
   if (JUNK_SENDER_PATTERNS.some((p) => contact.includes(p))) return true;
+  if (userBlocked.some((p) => contact.includes(p))) return true;
   if (JUNK_SUBJECT_PATTERNS.some((p) => p.test(subject))) return true;
   if (/\bunsubscribe\b|\bemail preferences\b|\bopt.?out\b/i.test(snippet) && /\b(no-?reply|newsletter|hello|hi|team|digest|updates?)@/.test(contact)) return true;
   return false;
 }
 
 const rows = await client.query(anyApi.opportunities.list, {});
+const userBlocked = (await client.query(anyApi.opportunities.listBlockedSenders, {}).catch(() => []))
+  .map((b) => b.pattern.toLowerCase())
+  .filter(Boolean);
 const newRows = rows.filter((r) => r.stage === "New");
 const triagedRows = rows.filter((r) => r.stage !== "New");
 

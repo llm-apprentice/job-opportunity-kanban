@@ -4,16 +4,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from gmail_backfill import dedupe_by_company_keep_newest
+from gmail_backfill import sort_newest_first
 
 
-def test_dedupes_company_records_and_keeps_newest():
+def test_keeps_every_message_and_sorts_newest_first():
     rows = [
         {
             "company": "Bitdrift",
             "role": "Head of Marketing",
             "lastTouch": "2026-06-01",
             "gmailMessageId": "old",
+            "gmailThreadId": "t1",
             "subject": "Old Bitdrift thread",
         },
         {
@@ -21,6 +22,7 @@ def test_dedupes_company_records_and_keeps_newest():
             "role": "Head of Marketing",
             "lastTouch": "2026-06-29",
             "gmailMessageId": "new",
+            "gmailThreadId": "t1",
             "subject": "Newest Bitdrift thread",
         },
         {
@@ -28,20 +30,12 @@ def test_dedupes_company_records_and_keeps_newest():
             "role": "Growth Lead",
             "lastTouch": "2026-06-28",
             "gmailMessageId": "unknown",
-        },
-        {
-            "company": "Hobbes",
-            "role": "Founding Growth Lead",
-            "lastTouch": "2026-06-20",
-            "gmailMessageId": "hobbes",
+            "gmailThreadId": "t2",
         },
     ]
 
-    deduped = dedupe_by_company_keep_newest(rows)
+    result = sort_newest_first(rows)
 
-    assert len(deduped) == 3
-    bitdrift = [r for r in deduped if r["company"].lower() == "bitdrift"]
-    assert len(bitdrift) == 1
-    assert bitdrift[0]["gmailMessageId"] == "new"
-    assert any(r["company"] == "Unknown company" for r in deduped)
-    assert any(r["company"] == "Hobbes" for r in deduped)
+    # Same-thread/same-company messages are all preserved (the server merges
+    # them onto one card as history) and ordered newest first.
+    assert [r["gmailMessageId"] for r in result] == ["new", "unknown", "old"]

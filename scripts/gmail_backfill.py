@@ -25,42 +25,15 @@ def _date_key(row: dict) -> str:
     return row.get("lastTouch") or ""
 
 
-def dedupe_by_thread_keep_newest(rows: list[dict]) -> list[dict]:
-    """Collapse records from the same Gmail thread, keeping the newest touch.
+def sort_newest_first(rows: list[dict]) -> list[dict]:
+    """Newest first so an inserted card's headline fields come from the
+    latest message; older rows then merge in as history via isIncomingNewer.
 
-    Replies and follow-ups share a threadId; one conversation is one opportunity.
+    Thread/company collapsing happens server-side in upsertFromGmailBatch,
+    which records every message on its card — collapsing here would lose
+    conversation history.
     """
-    best_by_thread: dict[str, dict] = {}
-    no_thread: list[dict] = []
-    for row in rows:
-        key = row.get("gmailThreadId") or ""
-        if not key:
-            no_thread.append(row)
-            continue
-        current = best_by_thread.get(key)
-        if current is None or (_date_key(row), row.get("gmailMessageId", "")) > (_date_key(current), current.get("gmailMessageId", "")):
-            best_by_thread[key] = row
-    return no_thread + list(best_by_thread.values())
-
-
-def dedupe_by_company_keep_newest(rows: list[dict]) -> list[dict]:
-    """Collapse records with the same known company, keeping the newest touch.
-
-    Unknown-company rows are preserved because we do not yet know whether they are duplicates.
-    """
-    best_by_company: dict[str, dict] = {}
-    unknowns: list[dict] = []
-    for row in rows:
-        key = _company_key(row.get("company"))
-        if not key:
-            unknowns.append(row)
-            continue
-        current = best_by_company.get(key)
-        if current is None or (_date_key(row), row.get("gmailMessageId", "")) > (_date_key(current), current.get("gmailMessageId", "")):
-            best_by_company[key] = row
-    deduped = unknowns + list(best_by_company.values())
-    deduped.sort(key=lambda r: (_date_key(r), r.get("gmailMessageId", "")), reverse=True)
-    return deduped
+    return sorted(rows, key=lambda r: (_date_key(r), r.get("gmailMessageId", "")), reverse=True)
 
 GAPI = ["python", str(Path.home() / ".hermes/skills/productivity/google-workspace/scripts/google_api.py")]
 
@@ -93,12 +66,12 @@ def collect_opportunities(days: int = 60, max_results: int = 150) -> list[dict]:
         parsed = parse_message(msg)
         if not parsed:
             continue
-        key = parsed.get("dedupeKey") or parsed.get("gmailMessageId") or parsed["id"]
+        key = parsed.get("gmailMessageId") or parsed.get("dedupeKey") or parsed["id"]
         if key in seen:
             continue
         seen.add(key)
         opps.append(parsed)
-    return dedupe_by_company_keep_newest(dedupe_by_thread_keep_newest(opps))
+    return sort_newest_first(opps)
 
 
 def main():

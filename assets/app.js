@@ -43,20 +43,71 @@ async function load() {
     loading = false;
     render();
   }
+  renderSyncBanner();
+}
+
+function timeAgo(ms) {
+  const mins = Math.round(ms / 60000);
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 36) return `${hours}h ago`;
+  return `${Math.round(hours / 24)} days ago`;
+}
+
+async function renderSyncBanner() {
+  const el = document.getElementById("syncBanner");
+  if (!el || !client) return;
+  try {
+    const run = await client.query(anyApi.opportunities.lastSyncRun, {});
+    if (!run) return;
+    const ago = timeAgo(Date.now() - run.finishedAt);
+    el.hidden = false;
+    if (run.status === "error") {
+      el.className = "sync-banner err";
+      el.textContent = `⚠ Sync failing — last attempt ${ago}: ${(run.error || "unknown error").slice(0, 140)}`;
+    } else if (Date.now() - run.finishedAt > 2.5 * 3600000) {
+      el.className = "sync-banner warn";
+      el.textContent = `⚠ Last sync ${ago} — the hourly sync appears to be stuck.`;
+    } else {
+      el.className = "sync-banner ok";
+      el.textContent = `Synced ${ago} · ${run.found} emails scanned`;
+    }
+  } catch (err) {
+    console.error("sync banner", err);
+  }
+}
+
+function localDateStr(offsetDays = 0) {
+  const d = new Date(Date.now() - offsetDays * 86400000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function filtered() {
+  const today = localDateStr(0);
+  const yesterday = localDateStr(1);
+  const weekAgo = localDateStr(7);
   return opportunities.filter((o) => {
     const hay = Object.values(o).join(" ").toLowerCase();
     const matchesQuery = hay.includes(query.toLowerCase());
     const days = o.lastTouch ? (Date.now() - new Date(o.lastTouch).getTime()) / 86400000 : 999;
+    const touch = o.lastTouch || "";
     const matchesFilter =
       activeFilter === "all" ||
+      (activeFilter === "today" && touch === today) ||
+      (activeFilter === "yesterday" && touch === yesterday) ||
+      (activeFilter === "week" && touch >= weekAgo) ||
       (activeFilter === "linkedin" && o.source === "LinkedIn") ||
       (activeFilter === "stale" && days > 7 && !["Pass", "Rejected"].includes(o.stage)) ||
       (activeFilter === "high" && o.priority === "High");
     return matchesQuery && matchesFilter;
   });
+}
+
+function formatShortDate(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || "")) return iso || "";
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function render() {
@@ -97,6 +148,10 @@ function card(o) {
     ${o.contact ? `<div class="contact">${escapeHtml(o.contact)}</div>` : ""}
     ${o.subject ? `<div class="snippet">${escapeHtml(o.subject)}</div>` : ""}
     ${o.nextStep ? `<div class="next">Next: ${escapeHtml(o.nextStep)}</div>` : ""}
+    <div class="cardfoot">
+      <span class="msgs">${o.messageCount || 1} msg${(o.messageCount || 1) === 1 ? "" : "s"}</span>
+      ${o.lastTouch ? `<span class="touch">${o.lastTouch === localDateStr(0) ? `<span class="fresh-dot" title="Activity today"></span>` : ""}${escapeHtml(formatShortDate(o.lastTouch))}</span>` : ""}
+    </div>
   </article>`;
 }
 
@@ -208,12 +263,56 @@ function openEditor(id) {
   form.reset();
   form.stage.innerHTML = STAGES.map((s) => `<option>${s}</option>`).join("");
   document.getElementById("deleteBtn").style.visibility = id ? "visible" : "hidden";
+  document.getElementById("blockBtn").style.visibility = id ? "visible" : "hidden";
   document.getElementById("modalTitle").textContent = id ? "Edit opportunity" : "Add opportunity";
   if (id) {
     const o = opportunities.find((x) => x._id === id);
     Object.keys(o || {}).forEach((k) => { if (form[k]) form[k].value = o[k] || ""; });
   }
+  renderTimeline(id);
   document.getElementById("editor").showModal();
+}
+
+async function renderTimeline(id) {
+  const section = document.getElementById("timeline");
+  const list = document.getElementById("timelineList");
+  section.hidden = true;
+  list.innerHTML = "";
+  if (!id || !client || id.startsWith("demo-")) return;
+  try {
+    const msgs = await client.query(anyApi.opportunities.messagesFor, { id });
+    if (!msgs.length) return;
+    list.innerHTML = msgs
+      .map(
+        (m) => `<div class="tl-item">
+          <div class="tl-head"><span class="tl-date">${escapeHtml(formatShortDate(m.date) || "earlier")}</span><span class="tl-from">${escapeHtml(m.from || "")}</span></div>
+          ${m.subject ? `<div class="tl-subject">${escapeHtml(m.subject)}</div>` : ""}
+          ${m.snippet ? `<div class="tl-snippet">${escapeHtml(m.snippet)}</div>` : ""}
+        </div>`,
+      )
+      .join("");
+    section.hidden = false;
+  } catch (err) {
+    console.error("timeline", err);
+  }
+}
+
+function senderEmail(contact) {
+  const m = (contact || "").match(/<([^>]+@[^>]+)>/) || (contact || "").match(/([\w.+-]+@[\w.-]+)/);
+  return m ? m[1].toLowerCase() : "";
+}
+
+async function blockSenderFor(id) {
+  const o = opportunities.find((x) => x._id === id);
+  const email = senderEmail(o?.contact);
+  if (!email) {
+    alert("No sender email on this card — delete it instead.");
+    return;
+  }
+  if (!confirm(`Block "${email}"?\n\nThis deletes the card and permanently stops ingesting emails from this exact address.`)) return;
+  if (!client || id.startsWith("demo-")) return;
+  await client.mutation(anyApi.opportunities.blockSender, { id, pattern: email });
+  await load();
 }
 
 function formData() {
@@ -328,6 +427,10 @@ document.getElementById("editorForm").addEventListener("submit", async (e) => {
   if (val === "cancel") return document.getElementById("editor").close();
   if (val === "delete" && editingId) {
     await deleteOpportunity(editingId);
+    return document.getElementById("editor").close();
+  }
+  if (val === "block") {
+    if (editingId) await blockSenderFor(editingId);
     return document.getElementById("editor").close();
   }
   const data = formData();

@@ -124,6 +124,9 @@ COMMON_NON_COMPANY = {
     "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
     # Location/format fragments.
     "san", "los", "eu", "us", "usa", "uk", "remote", "hybrid", "onsite",
+    # Role words that regexes mistake for companies ("for Founding GTM Lead").
+    "founding", "founder", "marketing", "gtm", "growth", "product",
+    "senior", "director", "manager", "lead", "principal", "staff",
 }
 
 ROLE_STARTERS = [
