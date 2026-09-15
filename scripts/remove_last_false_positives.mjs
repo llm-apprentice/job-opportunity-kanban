@@ -3,7 +3,13 @@ import { readFile } from "node:fs/promises";
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 
-const url = process.env.CONVEX_URL || "https://secret-ladybug-592.convex.cloud";
+function requiredConvexUrl() {
+  const url = process.env.CONVEX_URL || process.env.VITE_CONVEX_URL;
+  if (!url) throw new Error("Missing CONVEX_URL or VITE_CONVEX_URL. Copy .env.example to .env.local for local use.");
+  return url;
+}
+
+const url = requiredConvexUrl();
 const junk = JSON.parse(await readFile("data/opportunities.local.json", "utf8"));
 const junkIds = new Set(junk.map((r) => r.gmailMessageId).filter(Boolean));
 const client = new ConvexHttpClient(url);

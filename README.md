@@ -10,6 +10,8 @@ A private-by-default job-search Kanban dashboard for tracking opportunities, rec
 ## Columns
 
 - New
+- Awaiting (stacked below New in the first column)
+- AI Applied (stacked below Awaiting in the first column)
 - Screen
 - Founder/HM
 - Offer
@@ -50,3 +52,15 @@ This repo is designed to be public-safe. Do not commit:
 - Gmail OAuth tokens
 - raw email exports
 - personal contact history
+
+## Secret hygiene
+
+This repo is intended to be safe to make public. Keep private runtime values in `.env.local` (copied from `.env.example`) and local data under `data/`, both of which are ignored by git. Scripts that talk to Convex or Google Docs require `CONVEX_URL`/`VITE_CONVEX_URL` and optional `GDOC_ID` from the environment instead of hardcoded personal endpoints or document IDs.
+
+Before publishing or opening PRs, run:
+
+```bash
+bash scripts/secret_scan.sh
+```
+
+See [`docs/PRIVACY.md`](docs/PRIVACY.md) for the public-release checklist.
