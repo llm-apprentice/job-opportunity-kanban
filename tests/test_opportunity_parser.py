@@ -4,15 +4,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import opportunity_parser
 from opportunity_parser import parse_message
 
 
-def test_extracts_company_from_lance_wills_dash_subject():
+def test_extracts_company_from_candidate_name_dash_subject():
     msg = {
         "id": "1",
         "threadId": "t1",
         "from": "Recruiter <person@example.com>",
-        "subject": "Lance Wills - Bitdrift Head of Marketing - 5x founding marketer (3x AI), 2 Series As,...",
+        "subject": "Candidate Name - Bitdrift Head of Marketing - 5x founding marketer (3x AI), 2 Series As,...",
         "date": "2026-06-29T12:00:00Z",
         "snippet": "Opportunity intro",
     }
@@ -29,7 +30,7 @@ def test_omits_linkedin_post_performance_email():
         "id": "2",
         "threadId": "t2",
         "from": "LinkedIn <messages-noreply@linkedin.com>",
-        "subject": "Lance, your posts got 495 impressions last week",
+        "subject": "Candidate, your posts got 495 impressions last week",
         "date": "2026-06-29T12:00:00Z",
         "snippet": "See how your posts performed",
     }
@@ -50,22 +51,26 @@ def test_omits_beehiiv_newsletter():
     assert parse_message(msg) is None
 
 
-def test_omits_messages_from_lance_personal_email():
+def test_omits_messages_from_candidate_personal_email():
     msg = {
         "id": "4",
         "threadId": "t4",
-        "from": "Lance Wills <lance.r.wills@gmail.com>",
+        "from": "Candidate Name <candidate@example.com>",
         "subject": "Re: Hobbes Founding Growth Lead",
         "date": "2026-06-29T12:00:00Z",
         "snippet": "Thank you for speaking with me about the opportunity",
     }
 
-    assert parse_message(msg) is None
+    opportunity_parser.OWN_EMAILS.add("candidate@example.com")
+    try:
+        assert parse_message(msg) is None
+    finally:
+        opportunity_parser.OWN_EMAILS.discard("candidate@example.com")
 
 
 def test_omits_calendar_zoom_and_google_meet_invites():
     subjects = [
-        "Invitation: Lance Wills Zoom Interview with Maggie O'Gorman",
+        "Invitation: Candidate Name Zoom Interview with Maggie O'Gorman",
         "Google Meet: Founder screen for Head of Marketing role",
         "Calendar invite: Product Marketing Manager interview",
     ]
@@ -85,7 +90,7 @@ def test_omits_own_sent_messages_by_label():
     msg = {
         "id": "30",
         "threadId": "t30",
-        "from": "Lance Wills <some.other.address@gmail.com>",
+        "from": "Candidate Name <candidate.alt@example.com>",
         "subject": "Re: Head of Marketing opportunity",
         "date": "2026-06-29T12:00:00Z",
         "snippet": "Thanks, following up on the role",
@@ -114,7 +119,7 @@ def test_omits_linkedin_message_replied_notifications():
         "from": "Daniel Murphy <hit-reply@linkedin.com>",
         "subject": "Message replied: AI Startup Head of Marketing | $150k-$200k + Equity",
         "date": "2026-06-29T12:00:00Z",
-        "snippet": "Hi Lance, just sent an email over",
+        "snippet": "Hi Candidate, just sent an email over",
     }
     assert parse_message(msg) is None
 
@@ -125,8 +130,8 @@ def test_omits_linkedin_social_notifications():
         "Ankit Verma tagged you in a post.",
         "Caro Tabar commented on your post.",
         "Messages from Rob and 1 others are waiting",
-        "\U0001f525 Lance, keep your Patches streak going!",
-        "Lance, please verify your new device",
+        "\U0001f525 Candidate, keep your Patches streak going!",
+        "Candidate, please verify your new device",
     ]
     for i, subject in enumerate(subjects, start=40):
         msg = {
@@ -145,7 +150,7 @@ def test_omits_calendar_robot_reminders():
         "id": "50",
         "threadId": "t50",
         "from": '"beth@example.com (Google Calendar)" <calendar-notification@google.com>',
-        "subject": "Reminder: Afresh Sync w/Beth, Sr. Recruiter (Lance Wills) @ Mon Jul 6",
+        "subject": "Reminder: Afresh Sync w/Beth, Sr. Recruiter (Candidate Name) @ Mon Jul 6",
         "date": "2026-07-05T12:00:00Z",
         "snippet": "Interview reminder",
     }
@@ -159,7 +164,7 @@ def test_keeps_real_linkedin_recruiter_message():
         "from": "Jane Recruiter <hit-reply@linkedin.com>",
         "subject": "New message: Head of Growth Marketing Opportunity (San Francisco/Remote)",
         "date": "2026-06-29T12:00:00Z",
-        "snippet": "Hi Lance, I came across your profile and think you'd be a great fit",
+        "snippet": "Hi Candidate, I came across your profile and think you'd be a great fit",
         "labels": ["INBOX", "CATEGORY_SOCIAL"],
     }
     parsed = parse_message(msg)
@@ -167,9 +172,20 @@ def test_keeps_real_linkedin_recruiter_message():
     assert parsed["source"] == "LinkedIn"
 
 
+def test_omits_linkedin_application_sent_receipts():
+    msg = {
+        "id": "80",
+        "threadId": "t80",
+        "from": "LinkedIn <jobs-noreply@linkedin.com>",
+        "subject": "Candidate, your application was sent to Orange Logic",
+        "date": "2026-07-15T12:00:00Z",
+        "snippet": "Your application was sent",
+    }
+    assert parse_message(msg) is None
+
+
 def test_extracts_company_from_application_receipts():
     cases = [
-        ("Lance, your application was sent to Orange Logic", "Orange Logic"),
         ("Your application to Vice President Marketing at Orange Logic", "Orange Logic"),
         ("Thank you for applying to Prolific!", "Prolific"),
         ("Confirm your application for Director of Demand Generation at FurtherAI", "FurtherAI"),
@@ -195,7 +211,7 @@ def test_rejects_day_and_place_fragments_as_companies():
         "from": "Chinmay Dixit <somebody@example.com>",
         "subject": "Adobe Hiring: Project Manager 5, Hybrid Role @San Jose CA",
         "date": "2026-06-29T12:00:00Z",
-        "snippet": "Hi Lance, slots for this role",
+        "snippet": "Hi Candidate, slots for this role",
     }
     parsed = parse_message(msg)
     assert parsed is not None
@@ -207,7 +223,7 @@ def test_normalizes_rfc2822_email_date_for_newest_dedupe():
         "id": "20",
         "threadId": "t20",
         "from": "Recruiter <person@example.com>",
-        "subject": "Lance Wills - Bitdrift Head of Marketing - 5x founding marketer",
+        "subject": "Candidate Name - Bitdrift Head of Marketing - 5x founding marketer",
         "date": "Wed, 24 Jun 2026 16:01:22 -0700",
         "snippet": "Opportunity intro",
     }

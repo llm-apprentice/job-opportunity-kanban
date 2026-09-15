@@ -29,12 +29,12 @@ def test_builds_company_role_intel_from_interview_notes():
 def test_reconciles_unknown_company_from_gdoc_subject_match():
     index = build_intel_index("""
     Bitdrift - Head of Marketing
-    Notes: Lance spoke to founder about the Head of Marketing role.
+    Notes: Candidate spoke to founder about the Head of Marketing role.
     """)
     opp = {
         "company": "Unknown company",
-        "role": "Lance Wills - Bitdrift Head of Marketing - 5x founding marketer",
-        "subject": "Lance Wills - Bitdrift Head of Marketing - 5x founding marketer",
+        "role": "Candidate Name - Bitdrift Head of Marketing - 5x founding marketer",
+        "subject": "Candidate Name - Bitdrift Head of Marketing - 5x founding marketer",
         "notes": "",
     }
 

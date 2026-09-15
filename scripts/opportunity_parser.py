@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import html
+import os
 import re
 from email.utils import parseaddr, parsedate_to_datetime
 from typing import Any
 
 STAGE = "New"
 
-MY_EMAILS = {"lance.r.wills@gmail.com", "alphascorp@gmail.com"}
+OWN_EMAILS = {e.strip().lower() for e in os.environ.get("OPPORTUNITY_RADAR_OWN_EMAILS", "").split(",") if e.strip()}
 
 # Gmail labels that mark a message as not-an-opportunity regardless of content.
 OMIT_LABELS = {"SENT", "DRAFT", "CATEGORY_PROMOTIONS", "SPAM", "TRASH"}
@@ -71,6 +72,8 @@ OMIT_SUBJECT_PATTERNS = [
     re.compile(r"\bmessages? from .* (is|are) waiting\b", re.I),
     re.compile(r"\bverify your new device\b", re.I),
     re.compile(r"\byour application was viewed\b", re.I),
+    # LinkedIn application receipts ("Candidate, your application was sent to X").
+    re.compile(r"\byour application was sent to\b", re.I),
     # Digest / drip marketing subjects.
     re.compile(r"\byour matched opportunities\b", re.I),
     re.compile(r"\bsee the latest roles\b", re.I),
@@ -105,8 +108,8 @@ JOB_PATTERNS = [
 ]
 
 COMMON_NON_COMPANY = {
-    "lance",
-    "wills",
+    "candidate",
+    "name",
     "re",
     "fw",
     "fwd",
@@ -161,7 +164,7 @@ def should_omit(sender: str, subject: str, snippet: str = "", labels: list[str] 
         return True
     _name, sender_email = parseaddr(sender)
     sender_email = sender_email.lower()
-    if sender_email in MY_EMAILS:
+    if sender_email in OWN_EMAILS:
         return True
     if any(p in hay for p in OMIT_SENDER_PATTERNS):
         return True
@@ -204,7 +207,7 @@ def infer_company(sender: str, subject: str, snippet: str = "") -> str:
     subject = _strip_reply_prefixes(_clean(subject))
 
     # ATS / job-board application receipts carry the company after a fixed phrase:
-    # "Lance, your application was sent to Orange Logic"
+    # "Candidate, your application was sent to Orange Logic"
     # "Your application to Vice President Marketing at Orange Logic"
     # "Thank you for applying to Prolific!"
     # "Confirm your application for Director of Demand Generation at FurtherAI"
@@ -220,8 +223,8 @@ def infer_company(sender: str, subject: str, snippet: str = "") -> str:
             return m.group(1).strip(" .,-—–!")
 
     # Very common outbound/application format:
-    # "Lance Wills - Bitdrift Head of Marketing - 5x founding marketer ..."
-    m = re.search(r"^Lance(?:\s+R\.)?\s+Wills\s+-\s+([A-Z][A-Za-z0-9.&-]+)\s+(.+)$", subject)
+    # "Candidate Name - Bitdrift Head of Marketing - 5x founding marketer ..."
+    m = re.search(r"^[A-Z][A-Za-z]+(?:\s+[A-Z]\.)?\s+[A-Z][A-Za-z]+\s+-\s+([A-Z][A-Za-z0-9.&-]+)\s+(.+)$", subject)
     if m and _valid_company(m.group(1)):
         return m.group(1).strip(" -—–")
 
@@ -247,8 +250,8 @@ def infer_role(subject: str, snippet: str = "") -> str:
     subject = _strip_reply_prefixes(_clean(subject))
     text = _clean(f"{subject} {snippet}")
 
-    # Paired with company extraction above: remove "Lance Wills - Company " and keep role until next dash.
-    m = re.search(r"^Lance(?:\s+R\.)?\s+Wills\s+-\s+[A-Z][A-Za-z0-9.&-]+\s+(.+?)(?:\s+-\s+|$)", subject)
+    # Paired with company extraction above: remove "Candidate Name - Company " and keep role until next dash.
+    m = re.search(r"^[A-Z][A-Za-z]+(?:\s+[A-Z]\.)?\s+[A-Z][A-Za-z]+\s+-\s+[A-Z][A-Za-z0-9.&-]+\s+(.+?)(?:\s+-\s+|$)", subject)
     if m:
         return m.group(1).strip(" .,-—–")[:90]
 

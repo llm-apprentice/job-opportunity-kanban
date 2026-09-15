@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 from gmail_backfill import sort_newest_first
 
-GAPI = ["python", str(Path.home() / ".hermes/skills/productivity/google-workspace/scripts/google_api.py")]
-DEFAULT_DOC_ID = "18gDt1KVMPnONbrQdZ_ulOMBecA11_VfiDI1mYasVcDw"
+GAPI = [sys.executable, str(Path.home() / ".hermes/skills/productivity/google-workspace/scripts/google_api.py")]
 
 ROLE_HINTS = [
     "Head of Marketing",
@@ -29,8 +30,8 @@ ROLE_HINTS = [
 ]
 
 STOP_WORDS = {
-    "lance",
-    "wills",
+    "candidate",
+    "name",
     "interview",
     "notes",
     "founder",
@@ -200,13 +201,14 @@ def _should_replace_role(opp: dict[str, Any]) -> bool:
     if source == "manual":
         return False
     role = (opp.get("role") or "").strip()
-    if "Lance Wills" not in role and any(re.search(rf"\b{re.escape(hint)}\b", role, re.I) for hint in ROLE_HINTS):
+    candidate_name = os.environ.get("OPPORTUNITY_RADAR_CANDIDATE_NAME", "Candidate Name")
+    if candidate_name not in role and any(re.search(rf"\b{re.escape(hint)}\b", role, re.I) for hint in ROLE_HINTS):
         return False
     return (
         not role
         or role == "Unknown role"
         or len(role) > 80
-        or "Lance Wills" in role
+        or candidate_name in role
         or re.search(r"\b(intro|conversation|follow\s*up|call|chat)\b", role, re.I) is not None
     )
 
@@ -257,7 +259,7 @@ def reconcile_opportunity(opp: dict[str, Any], index: dict[str, Any]) -> dict[st
     return enriched
 
 
-def fetch_gdoc_text(doc_id: str = DEFAULT_DOC_ID) -> str:
+def fetch_gdoc_text(doc_id: str) -> str:
     p = subprocess.run(GAPI + ["docs", "get", doc_id], text=True, capture_output=True)
     if p.returncode:
         raise RuntimeError(p.stderr or p.stdout)
@@ -272,11 +274,13 @@ def enrich_opportunities(opportunities: list[dict[str, Any]], doc_text: str) -> 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--doc-id", default=DEFAULT_DOC_ID)
+    ap.add_argument("--doc-id", default=os.environ.get("GDOC_ID"), required=False)
     ap.add_argument("--input", required=True)
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
+    if not args.doc_id:
+        ap.error("--doc-id or GDOC_ID is required")
     doc_text = fetch_gdoc_text(args.doc_id)
     opportunities = json.loads(Path(args.input).read_text())
     enriched = enrich_opportunities(opportunities, doc_text)
