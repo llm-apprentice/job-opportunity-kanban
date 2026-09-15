@@ -8,11 +8,17 @@
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 
-const url = process.env.CONVEX_URL || process.env.VITE_CONVEX_URL || "https://secret-ladybug-592.convex.cloud";
+function requiredConvexUrl() {
+  const url = process.env.CONVEX_URL || process.env.VITE_CONVEX_URL;
+  if (!url) throw new Error("Missing CONVEX_URL or VITE_CONVEX_URL. Copy .env.example to .env.local for local use.");
+  return url;
+}
+
+const url = requiredConvexUrl();
 const client = new ConvexHttpClient(url);
 const dryRun = process.env.DRY_RUN === "1";
 
-const MY_EMAILS = ["lance.r.wills@gmail.com", "alphascorp@gmail.com"];
+const OWN_EMAILS = (process.env.OPPORTUNITY_RADAR_OWN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
 
 const JUNK_SENDER_PATTERNS = [
   "beehiiv.com",
@@ -97,7 +103,7 @@ function derivedCompanyName(row) {
     /(?:your application|confirm your application)\s+(?:to|for)\s+.*?\bat\s+([A-Z0-9][\w.&' -]{1,50})$/i,
     /thank you for applying to\s+(.{2,60}?)[!.]?$/i,
     /thank you for your interest in\s+(.{2,60}?)[!.]?$/i,
-    /^Lance(?:\s+R\.)?\s+Wills\s+-\s+([A-Z][A-Za-z0-9.&-]+)\s+/,
+    /^[A-Z][A-Za-z]+(?:\s+[A-Z]\.)?\s+[A-Z][A-Za-z]+\s+-\s+([A-Z][A-Za-z0-9.&-]+)\s+/,
   ];
   for (const pat of patterns) {
     const m = subject.match(pat);
@@ -126,7 +132,7 @@ function isJunk(row) {
   const contact = `${row.contact || ""}`.toLowerCase();
   const subject = `${row.subject || ""}`;
   const snippet = `${row.snippet || ""} ${row.notes || ""}`;
-  if (MY_EMAILS.some((e) => contact.includes(e))) return true;
+  if (OWN_EMAILS.some((e) => contact.includes(e))) return true;
   if (JUNK_SENDER_PATTERNS.some((p) => contact.includes(p))) return true;
   if (userBlocked.some((p) => contact.includes(p))) return true;
   if (JUNK_SUBJECT_PATTERNS.some((p) => p.test(subject))) return true;

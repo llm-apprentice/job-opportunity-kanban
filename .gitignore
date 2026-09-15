@@ -1,10 +1,20 @@
-data/*.local.json
+# Local/private data and browser/session state
+data/*
+!data/*.example.json
+screenshots/
 *.local.json
+*.local/
+*.local.mjs
 .env
-.env.local
-.DS_Store
+.env.*
+!.env.example
+
+# OAuth/client-secret files
 google_token.json
 google_client_secret.json
+
+# Build/cache artifacts
+.DS_Store
 node_modules/
 dist/
 .pytest_cache/

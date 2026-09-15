@@ -1,0 +1,30 @@
+{
+  "resumeRoot": "/absolute/path/to/private/resumes",
+  "resumeIndexFile": "data/resume-index.local.json",
+  "defaultResumeFile": "Example-Resume.pdf",
+  "defaultApplicationAnswers": {
+    "firstName": "",
+    "lastName": "",
+    "fullName": "",
+    "email": "",
+    "mobilePhone": "",
+    "linkedInUrl": "",
+    "githubProfileUrl": "",
+    "currentCompany": "",
+    "locationFreeText": "",
+    "authorizedToWorkInUS": "",
+    "requiresVisaSponsorship": "",
+    "previouslyAppliedOrWorkedAtCompany": "",
+    "smsPermission": "",
+    "veteranStatus": "",
+    "disabilityStatus": ""
+  },
+  "compRules": {
+    "salaryMinimumNumber": "",
+    "salaryMaximumNumber": "",
+    "salarySingleFieldNumber": ""
+  },
+  "resumeRules": {
+    "fallbackWhenUnsure": "default"
+  }
+}
